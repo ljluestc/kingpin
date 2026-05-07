@@ -1,0 +1,51 @@
+PR Title
+fix(global): respect remaining stdlib flag args in kingpin.Parse
+
+Related Issue
+Fixes #321
+
+Problem
+When applications use both Go stdlib `flag.Parse()` and global `kingpin.Parse()`,
+kingpin currently parses `os.Args[1:]` directly. This can re-read arguments that
+were already consumed by stdlib `flag`, causing interference in mixed-parser flows.
+
+Root Cause
+Global helpers in `global.go` (`Parse()` and `Usage()`) always read full process
+args, without checking whether stdlib `flag.CommandLine` has already parsed and
+reduced the effective argument list.
+
+What Changed
+1) Added `commandLineArgs()` in `global.go`.
+   - Default behavior: returns `os.Args[1:]`.
+   - Compatibility behavior: if stdlib `flag.CommandLine` is already parsed and
+     has consumed arguments (detected by changed remaining-args length), returns
+     `flag.Args()` instead.
+
+2) Updated global entrypoints to use this helper:
+   - `Parse()` now calls `CommandLine.Parse(commandLineArgs())`
+   - `Usage()` now calls `CommandLine.Usage(commandLineArgs())`
+
+3) Added regression tests in new file `global_test.go`:
+   - `TestCommandLineArgsPrefersRemainingStdlibArgsWhenConsumed`
+   - `TestCommandLineArgsFallsBackToOSArgsWhenStdlibDidNotConsume`
+   - `TestCommandLineArgsUsesOSArgsWhenStdlibNotParsed`
+
+Behavior After Fix
+- In mixed stdlib+kingpin flows where stdlib has already consumed flags, global
+  kingpin parsing now uses only the remaining arguments.
+- In kingpin-only flows, behavior remains unchanged.
+
+Changed Files
+- global.go
+- global_test.go
+
+How to Test
+1) Run focused tests:
+   go test ./... -run TestCommandLineArgs
+
+2) Run full test suite:
+   go test ./...
+
+Local Test Result
+- Focused command passed with all 3 new tests.
+- Full suite passed locally before push.

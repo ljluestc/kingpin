@@ -1,6 +1,7 @@
 package kingpin
 
 import (
+	stdflag "flag"
 	"os"
 	"path/filepath"
 )
@@ -36,12 +37,23 @@ func Arg(name, help string) *ArgClause {
 // Parse and return the selected command. Will call the termination handler if
 // an error is encountered.
 func Parse() string {
-	selected := MustParse(CommandLine.Parse(os.Args[1:]))
+	selected := MustParse(CommandLine.Parse(commandLineArgs()))
 	if selected == "" && CommandLine.cmdGroup.have() {
 		Usage()
 		CommandLine.terminate(0)
 	}
 	return selected
+}
+
+func commandLineArgs() []string {
+	args := os.Args[1:]
+	if stdflag.CommandLine != nil && stdflag.CommandLine.Parsed() {
+		remaining := stdflag.Args()
+		if len(remaining) != len(args) {
+			return remaining
+		}
+	}
+	return args
 }
 
 // Errorf prints an error message to stderr.
@@ -74,7 +86,7 @@ func FatalUsageContext(context *ParseContext, format string, args ...interface{}
 
 // Usage prints usage to stderr.
 func Usage() {
-	CommandLine.Usage(os.Args[1:])
+	CommandLine.Usage(commandLineArgs())
 }
 
 // Set global usage template to use (defaults to DefaultUsageTemplate).
